@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BCBP Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0D1117;
+    --surface: #161B27;
+    --card: #1C2333;
+    --border: #2A3348;
+    --accent: #00C8FF;
+    --accent-dim: rgba(0,200,255,0.12);
+    --accent-dim2: rgba(0,200,255,0.06);
+    --text: #E8EDF2;
+    --text-muted: #6B7A99;
+    --text-dim: #3D4F6E;
+    --green: #22C55E;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding-bottom: 3rem;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+    font-size: 16px;
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+  header span {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── NAV TABS ── */
+  .nav-tabs {
+    margin-left: auto;
+    display: flex; gap: 0;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .nav-tab {
+    padding: 0.45rem 0.85rem;
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer; border: none; background: var(--surface);
+    color: var(--text-muted); transition: all 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .nav-tab:last-child { border-right: none; }
+  .nav-tab.active { background: var(--accent-dim); color: var(--accent); }
+  .nav-tab:hover:not(.active) { color: var(--text); }
+
+  /* ── GÉNÉRATEUR ── */
+  .gen-form { display: flex; flex-direction: column; gap: 1rem; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .form-row.full { grid-template-columns: 1fr; }
+  .form-row.trio { grid-template-columns: 1fr 1fr 1fr; }
+
+  .form-field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .form-field label {
+    font-family: var(--mono); font-size: 0.6rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .form-field input, .form-field select {
+    width: 100%; padding: 0.65rem 0.75rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: var(--mono); font-size: 0.82rem;
+    outline: none; transition: border-color 0.15s;
+  }
+  .form-field input:focus, .form-field select:focus { border-color: var(--accent); }
+  .form-field input::placeholder { color: var(--text-dim); }
+  .form-field select option { background: var(--card); }
+  .form-field input.upper { text-transform: uppercase; }
+
+  .form-divider {
+    border: none; border-top: 1px solid var(--border);
+    margin: 0.25rem 0;
+  }
+
+  .gen-preview {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.85rem 1rem;
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--text-muted); word-break: break-all;
+    line-height: 1.7; min-height: 48px;
+  }
+  .gen-preview .label { color: var(--text-dim); font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 0.3rem; }
+
+  .gen-qr-out {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem; text-align: center;
+  }
+  .gen-qr-out h3 {
+    font-family: var(--mono); font-size: 0.7rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 1rem;
+  }
+  #gen-qr-output { display: inline-block; padding: 1rem; background: #fff; border-radius: 12px; margin-bottom: 1rem; }
+
+  main { max-width: 520px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+  /* ── STEPS ── */
+  .step-bar {
+    display: flex; gap: 0; margin-bottom: 2rem;
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .step {
+    flex: 1; padding: 0.65rem 0.5rem;
+    text-align: center; font-size: 0.7rem;
+    font-family: var(--mono); letter-spacing: 0.04em;
+    color: var(--text-dim); background: var(--surface);
+    border-right: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+  .step:last-child { border-right: none; }
+  .step.active { color: var(--accent); background: var(--accent-dim2); }
+  .step.done { color: var(--green); }
+  .step-num { display: block; font-size: 0.6rem; margin-bottom: 2px; opacity: 0.6; }
+
+  /* ── SCAN SECTION ── */
+  .section-label {
+    font-family: var(--mono); font-size: 0.65rem;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 0.75rem;
+  }
+
+  .scan-zone {
+    border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    background: var(--surface);
+    margin-bottom: 1rem;
+  }
+  #reader {
+    width: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  #reader video { width: 100% !important; border-radius: 0 !important; }
+  #reader img { display: none !important; }
+
+  .scan-actions {
+    display: flex; gap: 0.75rem; margin-bottom: 1.5rem;
+  }
+  .btn {
+    flex: 1; padding: 0.8rem 1rem;
+    border-radius: 10px; border: none; cursor: pointer;
+    font-family: var(--mono); font-size: 0.8rem;
+    font-weight: 600; letter-spacing: 0.04em;
+    transition: all 0.15s; display: flex;
+    align-items: center; justify-content: center; gap: 0.5rem;
+  }
+  .btn-primary {
+    background: var(--accent); color: #0D1117;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-secondary {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── MANUAL INPUT ── */
+  .manual-block { margin-bottom: 1.5rem; }
+  .manual-block textarea {
+    width: 100%; padding: 0.85rem 1rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: var(--mono); font-size: 0.72rem;
+    resize: vertical; min-height: 80px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .manual-block textarea:focus { border-color: var(--accent); }
+  .manual-block textarea::placeholder { color: var(--text-dim); }
+
+  /* ── BOARDING PASS CARD ── */
+  .bp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+  .bp-header {
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.25rem;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .bp-header-left { }
+  .bp-header-left .airline { font-size: 0.65rem; color: var(--accent); font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.2rem; }
+  .bp-header-left .passenger { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.03em; }
+  .bp-status {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-size: 0.65rem; font-family: var(--mono); color: var(--green);
+    background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25);
+    padding: 0.35rem 0.6rem; border-radius: 6px;
+  }
+  .bp-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; }
+
+  /* Route */
+  .bp-route {
+    padding: 1.25rem 1.25rem 0;
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .bp-airport { text-align: center; flex: 1; }
+  .bp-airport .code { font-family: var(--mono); font-size: 2rem; font-weight: 600; color: var(--accent); line-height: 1; }
+  .bp-airport .city { font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem; }
+  .bp-arrow { flex: 2; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+  .bp-arrow-line {
+    width: 100%; height: 1px; background: linear-gradient(to right, var(--accent), transparent, var(--accent));
+    position: relative;
+  }
+  .bp-arrow-line::after { content: '▶'; position: absolute; right: -4px; top: -6px; font-size: 10px; color: var(--accent); }
+  .bp-arrow-label { font-family: var(--mono); font-size: 0.6rem; color: var(--text-muted); letter-spacing: 0.08em; }
+
+  /* Perforation */
+  .bp-perforation {
+    display: flex; align-items: center; margin: 0 -1px;
+    position: relative;
+  }
+  .bp-perforation::before, .bp-perforation::after {
+    content: ''; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--bg); border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .bp-perf-line {
+    flex: 1; border-top: 1px dashed var(--border); margin: 0 0.5rem;
+  }
+
+  /* Fields grid */
+  .bp-fields {
+    padding: 1rem 1.25rem 1.25rem;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .bp-field { }
+  .bp-field.full { grid-column: 1/-1; }
+  .bp-field label {
+    display: block; font-size: 0.58rem; font-family: var(--mono);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 0.3rem;
+  }
+  .bp-field .val {
+    font-family: var(--mono); font-size: 0.88rem; font-weight: 600;
+    color: var(--text); padding: 0.5rem 0.65rem;
+    background: var(--card); border-radius: 7px;
+    border: 1px solid var(--border);
+  }
+  .bp-field .val.editable {
+    cursor: pointer; border: 1px solid var(--border);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .bp-field .val.editable:hover { border-color: var(--accent); background: var(--accent-dim2); }
+  .bp-field .val.locked {
+    cursor: not-allowed; opacity: 0.55;
+    border: 1px solid var(--border);
+  }
+
+  /* ── SECURITY BANNER ── */
+  .security-banner {
+    margin: 0 1.25rem 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 9px;
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    font-size: 0.68rem; font-family: var(--mono); line-height: 1.6;
+  }
+  .security-banner.secured {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: var(--red);
+  }
+  .security-banner.clear {
+    background: rgba(34,197,94,0.07);
+    border: 1px solid rgba(34,197,94,0.25);
+    color: var(--green);
+  }
+  .security-banner .sec-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .security-banner strong { display: block; letter-spacing: 0.06em; margin-bottom: 0.1rem; }
+  .bp-field input, .bp-field select {
+    width: 100%; padding: 0.5rem 0.65rem;
+    background: var(--card); border: 1px solid var(--accent);
+    border-radius: 7px; color: var(--accent);
+    font-family: var(--mono); font-size: 0.88rem; font-weight: 600;
+    outline: none;
+  }
+  .bp-field select option { background: var(--card); color: var(--text); }
+  .modified-badge {
+    display: inline-block; font-size: 0.55rem; font-family: var(--mono);
+    color: var(--amber); background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3); border-radius: 4px;
+    padding: 1px 5px; margin-left: 0.4rem; vertical-align: middle;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── QR OUTPUT ── */
+  .qr-section {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 1.5rem; text-align: center; margin-bottom: 1.5rem;
+  }
+  .qr-section h3 {
+    font-family: var(--mono); font-size: 0.7rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 1rem;
+  }
+  #qr-output {
+    display: inline-block;
+    padding: 1rem; background: #fff; border-radius: 12px;
+    margin-bottom: 1rem;
+  }
+  #qr-output canvas, #qr-output img { display: block; }
+  .qr-warning {
+    font-size: 0.65rem; color: var(--amber);
+    font-family: var(--mono); letter-spacing: 0.04em;
+    background: rgba(245,158,11,0.07);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 8px; padding: 0.65rem 0.75rem;
+    text-align: left; line-height: 1.6;
+  }
+  .qr-warning strong { color: var(--amber); }
+
+  /* ── HIDDEN ── */
+  .hidden { display: none !important; }
+
+  /* ── RAW DATA ── */
+  .raw-block {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .raw-block pre {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--text-muted); word-break: break-all;
+    white-space: pre-wrap; line-height: 1.7;
+  }
+  details summary {
+    cursor: pointer; font-size: 0.65rem; font-family: var(--mono);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-dim); padding: 0.5rem 0;
+  }
+  details summary:hover { color: var(--text-muted); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); padding: 0.65rem 1.1rem;
+    border-radius: 10px; font-family: var(--mono); font-size: 0.75rem;
+    z-index: 999; transition: opacity 0.3s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .toast.hidden { opacity: 0; pointer-events: none; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">✈</div>
+  <div>
+    <h1>BCBP READER <span>/ EDITOR</span></h1>
+    <span>IATA Resolution 792 · v7</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="tab-reader" onclick="switchTab('reader')">LIRE</button>
+    <button class="nav-tab" id="tab-gen" onclick="switchTab('gen')">CRÉER</button>
+  </div>
+</header>
+
+<main>
+  <!-- Steps -->
+  <div class="step-bar">
+    <div class="step active" id="step1"><span class="step-num">01</span>SCAN</div>
+    <div class="step" id="step2"><span class="step-num">02</span>DONNÉES</div>
+    <div class="step" id="step3"><span class="step-num">03</span>QR CODE</div>
+  </div>
+
+  <!-- ── SECTION SCAN ── -->
+  <div id="section-scan">
+    <p class="section-label">Scanner le code-barres</p>
+
+    <div class="scan-zone" id="scan-zone">
+      <div id="reader"></div>
+    </div>
+
+    <div class="scan-actions">
+      <button class="btn btn-primary" id="btn-camera" onclick="startCamera()">📷 Caméra</button>
+      <button class="btn btn-secondary" id="btn-image" onclick="document.getElementById('file-input').click()">🖼 Image</button>
+      <button class="btn btn-secondary" id="btn-stop" onclick="stopCamera()" style="display:none">⏹ Stopper</button>
+    </div>
+    <input type="file" id="file-input" accept="image/*" style="display:none" onchange="scanFromFile(event)"/>
+
+    <div class="manual-block">
+      <p class="section-label">Ou coller la chaîne BCBP manuellement</p>
+      <textarea id="manual-input" placeholder="M1DOE/JOHN            EABCDEF CDGLFOPK 0123 182Y00A 0046 147"></textarea>
+      <div class="scan-actions" style="margin-top:0.5rem">
+        <button class="btn btn-secondary" onclick="parseManual()">→ Analyser</button>
+        <button class="btn btn-secondary" onclick="loadDemo()">🔧 Exemple IATA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION DONNÉES ── -->
+  <div id="section-data" class="hidden">
+    <p class="section-label">Données extraites <span id="modified-count" class="hidden"><span class="modified-badge">MODIFIÉ</span></span></p>
+
+    <div class="bp-card" id="bp-card">
+      <div class="bp-header">
+        <div class="bp-header-left">
+          <div class="airline" id="disp-airline">—</div>
+          <div class="passenger" id="disp-passenger">—</div>
+        </div>
+        <div class="bp-status">VALIDE</div>
+      </div>
+
+      <div class="bp-route">
+        <div class="bp-airport">
+          <div class="code" id="disp-from">—</div>
+          <div class="city">Départ</div>
+        </div>
+        <div class="bp-arrow">
+          <div class="bp-arrow-line"></div>
+          <div class="bp-arrow-label" id="disp-flight">—</div>
+        </div>
+        <div class="bp-airport">
+          <div class="code" id="disp-to">—</div>
+          <div class="city">Arrivée</div>
+        </div>
+      </div>
+
+      <div class="bp-perforation"><div class="bp-perf-line"></div></div>
+
+      <!-- Bannière sécurité -->
+      <div id="security-banner" class="security-banner hidden" style="margin-top:1rem"></div>
+        <div class="bp-field">
+          <label>Date (jour julien)</label>
+          <div class="val" id="disp-date">—</div>
+        </div>
+        <div class="bp-field">
+          <label>Siège <span id="seat-edit-hint" style="opacity:0.5">✎</span></label>
+          <div class="val editable" id="disp-seat" onclick="editField('seat')">—</div>
+        </div>
+
+        <!-- Classe voyageur — éditable -->
+        <div class="bp-field">
+          <label>Classe <span id="class-edit-hint" style="opacity:0.5">✎</span> <span class="modified-badge hidden" id="badge-class">MOD</span></label>
+          <div class="val editable" id="disp-class" onclick="editField('class')">—</div>
+          <select id="edit-class" class="hidden" onchange="saveField('class')" onblur="cancelField('class')">
+            <option value="F">F — Première classe</option>
+            <option value="J">J — Affaires (long-courrier)</option>
+            <option value="C">C — Affaires</option>
+            <option value="W">W — Éco+ / Premium éco</option>
+            <option value="S">S — Éco+ / Premium éco</option>
+            <option value="Y">Y — Économique (plein tarif)</option>
+            <option value="B">B — Économique</option>
+            <option value="M">M — Économique</option>
+            <option value="K">K — Économique</option>
+            <option value="Q">Q — Économique</option>
+            <option value="V">V — Économique</option>
+            <option value="H">H — Économique</option>
+            <option value="L">L — Économique</option>
+            <option value="G">G — Économique</option>
+            <option value="N">N — Économique</option>
+            <option value="T">T — Économique</option>
+            <option value="X">X — Économique</option>
+          </select>
+        </div>
+
+        <div class="bp-field">
+          <label>N° séquence</label>
+          <div class="val" id="disp-seq">—</div>
+        </div>
+
+        <div class="bp-field full">
+          <label>PNR / Référence réservation</label>
+          <div class="val" id="disp-pnr">—</div>
+        </div>
+
+        <div class="bp-field full">
+          <label>Numéro de billet</label>
+          <div class="val" id="disp-ticket">—</div>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>Données brutes BCBP</summary>
+      <div class="raw-block" style="margin-top:0.5rem">
+        <pre id="raw-display">—</pre>
+      </div>
+    </details>
+
+    <div class="scan-actions" style="margin-top:1.25rem">
+      <button class="btn btn-secondary" onclick="reset()">↩ Nouveau scan</button>
+      <button class="btn btn-primary" id="btn-generate-qr" onclick="generateQR()">⬇ Générer QR</button>
+    </div>
+
+  </div>
+
+  <!-- ── SECTION QR ── -->
+  <div id="section-qr" class="hidden">
+    <p class="section-label">QR Code régénéré</p>
+
+    <div class="qr-section">
+      <h3>Code embarquement · BCBP</h3>
+      <div id="qr-output"></div>
+    </div>
+
+    <div class="scan-actions">
+      <button class="btn btn-secondary" onclick="backToData()">← Modifier</button>
+      <button class="btn btn-primary" onclick="downloadQR()">💾 Télécharger</button>
+    </div>
+  </div>
+  <!-- ── SECTION GÉNÉRATEUR ── -->
+  <div id="section-gen" class="hidden">
+
+    <p class="section-label">Nouveau billet</p>
+
+    <div class="gen-form">
+
+      <!-- Passager -->
+      <div class="form-row">
+        <div class="form-field">
+          <label>Nom de famille</label>
+          <input type="text" id="gen-lastname" class="upper" placeholder="DOE" maxlength="18" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Prénom</label>
+          <input type="text" id="gen-firstname" class="upper" placeholder="JOHN" maxlength="10" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- Aéroports + vol -->
+      <div class="form-row trio">
+        <div class="form-field">
+          <label>Départ</label>
+          <input type="text" id="gen-origin" class="upper" placeholder="CDG" maxlength="3" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Arrivée</label>
+          <input type="text" id="gen-dest" class="upper" placeholder="LFO" maxlength="3" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Compagnie</label>
+          <input type="text" id="gen-carrier" class="upper" placeholder="AF" maxlength="3" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>N° vol</label>
+          <input type="text" id="gen-flight" class="upper" placeholder="0123" maxlength="5" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Date de vol</label>
+          <input type="date" id="gen-date" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- Classe, siège, porte -->
+      <div class="form-row trio">
+        <div class="form-field">
+          <label>Classe</label>
+          <select id="gen-class" onchange="buildPreview()">
+            <option value="F">F — Première</option>
+            <option value="J">J — Affaires</option>
+            <option value="C">C — Affaires</option>
+            <option value="W">W — Premium Éco</option>
+            <option value="Y" selected>Y — Économique</option>
+            <option value="B">B — Économique</option>
+            <option value="M">M — Économique</option>
+            <option value="K">K — Économique</option>
+            <option value="Q">Q — Économique</option>
+            <option value="V">V — Économique</option>
+            <option value="H">H — Économique</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Siège</label>
+          <input type="text" id="gen-seat" class="upper" placeholder="12A" maxlength="4" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Porte</label>
+          <input type="text" id="gen-gate" class="upper" placeholder="B22" maxlength="4" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- PNR -->
+      <div class="form-row">
+        <div class="form-field">
+          <label>PNR / Réf. réservation</label>
+          <input type="text" id="gen-pnr" class="upper" placeholder="ABCDEF" maxlength="7" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>N° séquence</label>
+          <input type="number" id="gen-seq" placeholder="1" min="1" max="9999" value="1" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <!-- QR généré -->
+      <div class="gen-qr-out hidden" id="gen-qr-section">
+        <h3>QR Code · BCBP</h3>
+        <div id="gen-qr-output"></div>
+      </div>
+
+      <div class="scan-actions">
+        <button class="btn btn-primary" onclick="generateFromForm()">⬇ Générer QR</button>
+        <button class="btn btn-secondary" id="btn-dl-gen" onclick="downloadGenQR()" style="display:none">💾 Télécharger</button>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────
+let bcbpData = {};
+let rawString = '';
+let html5Qr = null;
+let modifiedFields = new Set();
+
+// ─── DEMO DATA ───────────────────────────────────────────────────
+function loadDemo() {
+  // Exemple conforme IATA BCBP format M (mandatory fields)
+  document.getElementById('manual-input').value =
+    'M1DOE/JOHN            EABCDEF CDGLFOPK 0123 182Y012A00460 147';
+  showToast('Exemple IATA chargé');
+}
+
+// ─── CAMERA ──────────────────────────────────────────────────────
+function startCamera() {
+  document.getElementById('scan-zone').style.display = 'block';
+  document.getElementById('btn-camera').style.display = 'none';
+  document.getElementById('btn-image').style.display = 'none';
+  document.getElementById('btn-stop').style.display = 'flex';
+
+  html5Qr = new Html5Qrcode('reader');
+  html5Qr.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 280, height: 120 } },
+    (decoded) => {
+      stopCamera();
+      rawString = decoded;
+      parseBCBP(decoded);
+    },
+    () => {}
+  ).catch(err => {
+    showToast('Caméra non disponible : ' + err);
+    resetCameraUI();
+  });
+}
+
+function stopCamera() {
+  if (html5Qr) {
+    html5Qr.stop().catch(() => {}).finally(() => {
+      html5Qr.clear();
+      html5Qr = null;
+      resetCameraUI();
+    });
+  } else {
+    resetCameraUI();
+  }
+}
+
+function resetCameraUI() {
+  document.getElementById('btn-camera').style.display = 'flex';
+  document.getElementById('btn-image').style.display = 'flex';
+  document.getElementById('btn-stop').style.display = 'none';
+}
+
+// ─── SCAN FROM IMAGE FILE ─────────────────────────────────────────
+function scanFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Réinitialiser l'input pour permettre de resélectionner le même fichier
+  event.target.value = '';
+
+  showToast('⏳ Analyse de l\'image…');
+
+  const scanner = new Html5Qrcode('reader');
+  scanner.scanFile(file, true)
+    .then(decoded => {
+      scanner.clear();
+      rawString = decoded;
+      parseBCBP(decoded);
+    })
+    .catch(() => {
+      scanner.clear();
+      showToast('❌ Aucun code-barres détecté dans l\'image');
+    });
+}
+
+// ─── MANUAL PARSE ────────────────────────────────────────────────
+function parseManual() {
+  const val = document.getElementById('manual-input').value.trim();
+  if (!val) { showToast('Coller une chaîne BCBP d\'abord'); return; }
+  rawString = val;
+  parseBCBP(val);
+}
+
+// ─── BCBP PARSER (IATA Resolution 792) ───────────────────────────
+// Format M (Mandatory fields) — positions selon spec IATA
+// Ref: BCBP Implementation Guide v7
+function parseBCBP(str) {
+  try {
+    // Nettoyage
+    const s = str.trim();
+
+    // Vérification format de base
+    if (s.length < 30) throw new Error('Chaîne BCBP trop courte');
+    if (s[0] !== 'M') throw new Error('Format non reconnu (doit commencer par M)');
+
+    // ── Champ 1 : Format code (1 char) ──
+    // s[0] = 'M'
+
+    // ── Champ 2 : Number of legs encoded (1 char) ──
+    const legs = parseInt(s[1]) || 1;
+
+    // ── Champ 3 : Passenger name (20 chars, pos 2-21) ──
+    const nameRaw = s.substring(2, 22).trim();
+    // Format : NOM/PRENOM
+    const nameParts = nameRaw.split('/');
+    const lastName = nameParts[0] ? nameParts[0].trim() : '—';
+    const firstName = nameParts[1] ? nameParts[1].trim() : '';
+    const fullName = firstName ? `${firstName} ${lastName}` : lastName;
+
+    // ── Champ 4 : Electronic ticket indicator (1 char, pos 22) ──
+    const eTicket = s[22] || ' ';
+
+    // ── Champ 5 : Origin IATA (3 chars, pos 23-25) ──
+    const origin = s.substring(23, 26).trim();
+
+    // ── Champ 6 : Destination IATA (3 chars, pos 26-28) ──
+    const dest = s.substring(26, 29).trim();
+
+    // ── Champ 7 : Operating carrier (3 chars, pos 29-31) ──
+    const carrier = s.substring(29, 32).trim();
+
+    // ── Champ 8 : Flight number (5 chars, pos 32-36) ──
+    const flight = s.substring(32, 37).trim();
+
+    // ── Champ 9 : Date of flight Julian (3 chars, pos 37-39) ──
+    const julianDay = s.substring(37, 40).trim();
+
+    // ── Champ 10 : Compartment code / Cabin class (1 char, pos 40) ──
+    const cabinClass = s[40] || ' ';
+
+    // ── Champ 11 : Seat number (4 chars, pos 41-44) ──
+    const seat = s.substring(41, 45).trim();
+
+    // ── Champ 12 : Check-in sequence number (5 chars, pos 45-49) ──
+    const seq = s.substring(45, 50).trim();
+
+    // ── Champ 13 : Passenger status (1 char, pos 50) ──
+    const paxStatus = s[50] || ' ';
+
+    // ── Champ 14 : Field size (2 chars, pos 51-52) ──
+    // Taille des champs conditionnels qui suivent
+    const condSize = parseInt(s.substring(51, 53), 16) || 0;
+
+    // Champs conditionnels (pos 53+)
+    let pnr = '—';
+    let ticketNum = '—';
+    let hasSecurityKey = false;
+    let securityType = '';
+
+    if (condSize > 0 && s.length > 53) {
+      const cond = s.substring(53, 53 + condSize);
+      // PNR Airline : 7 chars au début des champs conditionnels
+      pnr = cond.substring(0, 7).trim() || '—';
+      // Numéro billet (13 chars à partir de pos 13 dans conditionnel)
+      if (cond.length >= 26) ticketNum = cond.substring(13, 26).trim() || '—';
+    }
+
+    // ── Détection clé de sécurité IATA BCBP ──
+    // Selon spec v7 : champ sécurité identifié par le marqueur '>' (type indicator)
+    // dans le bloc conditionnel unique (begin of version number field)
+    // Le champ sécurité commence par '>' suivi du type (1 char) et des données signées
+    const securityMarkerIdx = s.indexOf('>');
+    if (securityMarkerIdx !== -1 && securityMarkerIdx > 50) {
+      hasSecurityKey = true;
+      securityType = s[securityMarkerIdx + 1] || '?';
+    }
+    // Fallback : certaines implémentations utilisent '^' comme séparateur de sécurité
+    if (!hasSecurityKey && s.indexOf('^') !== -1) {
+      hasSecurityKey = true;
+      securityType = '^';
+    }
+
+    bcbpData = {
+      legs, fullName, lastName, firstName,
+      eTicket, origin, dest, carrier,
+      flight: carrier.trim() + ' ' + flight,
+      flightNum: flight,
+      julianDay,
+      cabinClass,
+      seat,
+      seq,
+      paxStatus,
+      pnr,
+      ticketNum,
+      hasSecurityKey,
+      securityType,
+      raw: s
+    };
+
+    modifiedFields = new Set();
+    displayData();
+    setStep(2);
+    showToast('✓ BCBP analysé — ' + legs + ' segment(s)');
+
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  }
+}
+
+// ─── DISPLAY ─────────────────────────────────────────────────────
+function displayData() {
+  const d = bcbpData;
+  document.getElementById('disp-passenger').textContent = d.fullName || '—';
+  document.getElementById('disp-airline').textContent = d.carrier || '—';
+  document.getElementById('disp-from').textContent = d.origin || '—';
+  document.getElementById('disp-to').textContent = d.dest || '—';
+  document.getElementById('disp-flight').textContent = d.flight || '—';
+  document.getElementById('disp-date').textContent = julianToDate(d.julianDay);
+  document.getElementById('disp-seat').textContent = d.seat || '—';
+  document.getElementById('disp-class').textContent = classLabel(d.cabinClass);
+  document.getElementById('disp-seq').textContent = d.seq ? parseInt(d.seq, 10) : '—';
+  document.getElementById('disp-pnr').textContent = d.pnr || '—';
+  document.getElementById('disp-ticket').textContent = d.ticketNum || '—';
+  document.getElementById('raw-display').textContent = d.raw;
+
+  // ── Gestion sécurité ──
+  const banner = document.getElementById('security-banner');
+  const seatEl = document.getElementById('disp-seat');
+  const classEl = document.getElementById('disp-class');
+  const btnQR = document.getElementById('btn-generate-qr');
+
+  if (d.hasSecurityKey) {
+    // Bannière rouge
+    banner.className = 'security-banner secured';
+    banner.innerHTML = `
+      <span class="sec-icon">🔒</span>
+      <div><strong>BILLET SÉCURISÉ — LECTURE SEULE</strong></div>`;
+    banner.classList.remove('hidden');
+
+    // Verrouiller les champs éditables
+    seatEl.className = 'val locked';
+    seatEl.onclick = () => showToast('🔒 Modification impossible — billet sécurisé');
+    classEl.className = 'val locked';
+    classEl.onclick = () => showToast('🔒 Modification impossible — billet sécurisé');
+
+    // Désactiver bouton QR
+    if (btnQR) { btnQR.disabled = true; btnQR.title = 'Billet sécurisé — modification interdite'; }
+
+  } else {
+    // Bannière verte
+    banner.className = 'security-banner clear';
+    banner.innerHTML = `
+      <span class="sec-icon">🔓</span>
+      <div>
+        <strong>AUCUNE CLÉ DE SÉCURITÉ</strong>
+        Ce billet ne contient pas de signature IATA. Les champs marqués ✎ sont modifiables.
+      </div>`;
+    banner.classList.remove('hidden');
+
+    // Champs éditables actifs
+    seatEl.className = 'val editable';
+    seatEl.onclick = () => editField('seat');
+    classEl.className = 'val editable';
+    classEl.onclick = () => editField('class');
+
+    if (btnQR) { btnQR.disabled = false; btnQR.title = ''; }
+  }
+
+  // Masquer/afficher les hints d'édition ✎
+  const seatHint = document.getElementById('seat-edit-hint');
+  const classHint = document.getElementById('class-edit-hint');
+  if (seatHint) seatHint.style.display = d.hasSecurityKey ? 'none' : 'inline';
+  if (classHint) classHint.style.display = d.hasSecurityKey ? 'none' : 'inline';
+
+  document.getElementById('section-scan').classList.add('hidden');
+  document.getElementById('section-data').classList.remove('hidden');
+  document.getElementById('section-qr').classList.add('hidden');
+}
+function editField(field) {
+  if (field === 'class') {
+    const disp = document.getElementById('disp-class');
+    const sel = document.getElementById('edit-class');
+    disp.classList.add('hidden');
+    sel.classList.remove('hidden');
+    sel.value = bcbpData.cabinClass.trim();
+    sel.focus();
+  }
+  if (field === 'seat') {
+    const disp = document.getElementById('disp-seat');
+    const current = bcbpData.seat;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = current;
+    input.maxLength = 4;
+    input.style.cssText = 'width:100%;padding:0.5rem 0.65rem;background:var(--card);border:1px solid var(--accent);border-radius:7px;color:var(--accent);font-family:var(--mono);font-size:0.88rem;font-weight:600;outline:none;';
+    disp.replaceWith(input);
+    input.focus();
+    input.id = 'edit-seat-input';
+    input.addEventListener('blur', () => {
+      bcbpData.seat = input.value.toUpperCase().padEnd(4, ' ').substring(0, 4);
+      modifiedFields.add('seat');
+      const newDiv = document.createElement('div');
+      newDiv.className = 'val editable';
+      newDiv.id = 'disp-seat';
+      newDiv.textContent = bcbpData.seat.trim();
+      newDiv.onclick = () => editField('seat');
+      input.replaceWith(newDiv);
+      updateModifiedState();
+      showToast('Siège modifié → ' + bcbpData.seat.trim());
+    });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  }
+}
+
+function saveField(field) {
+  if (field === 'class') {
+    const sel = document.getElementById('edit-class');
+    bcbpData.cabinClass = sel.value;
+    modifiedFields.add('class');
+    const disp = document.getElementById('disp-class');
+    disp.textContent = classLabel(bcbpData.cabinClass);
+    disp.classList.remove('hidden');
+    sel.classList.add('hidden');
+    document.getElementById('badge-class').classList.remove('hidden');
+    updateModifiedState();
+    showToast('Classe modifiée → ' + classLabel(bcbpData.cabinClass));
+  }
+}
+
+function cancelField(field) {
+  if (field === 'class') {
+    setTimeout(() => {
+      const sel = document.getElementById('edit-class');
+      if (!sel.classList.contains('hidden')) {
+        document.getElementById('disp-class').classList.remove('hidden');
+        sel.classList.add('hidden');
+      }
+    }, 200);
+  }
+}
+
+function updateModifiedState() {
+  const count = modifiedFields.size;
+  const badge = document.getElementById('modified-count');
+  if (count > 0) badge.classList.remove('hidden');
+  else badge.classList.add('hidden');
+}
+
+// ─── QR GENERATION ───────────────────────────────────────────────
+function generateQR() {
+  if (bcbpData.hasSecurityKey) {
+    showToast('🔒 Génération bloquée — billet sécurisé');
+    return;
+  }
+  // Reconstruire la chaîne BCBP avec les modifications
+  const d = bcbpData;
+  let s = d.raw.split('');
+
+  // Remplacer classe (pos 40)
+  s[40] = d.cabinClass[0] || 'Y';
+
+  // Remplacer siège (pos 41-44)
+  const seat4 = (d.seat + '    ').substring(0, 4);
+  for (let i = 0; i < 4; i++) s[41 + i] = seat4[i];
+
+  const newBCBP = s.join('');
+
+  // Afficher QR
+  document.getElementById('section-data').classList.add('hidden');
+  document.getElementById('section-qr').classList.remove('hidden');
+  setStep(3);
+
+  const container = document.getElementById('qr-output');
+  container.innerHTML = '';
+
+  new QRCode(container, {
+    text: newBCBP,
+    width: 220,
+    height: 220,
+    colorDark: '#000000',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
+
+function downloadQR() {
+  const canvas = document.querySelector('#qr-output canvas');
+  if (!canvas) { showToast('Générer le QR d\'abord'); return; }
+  const link = document.createElement('a');
+  link.download = 'BCBP_' + (bcbpData.flight || 'boarding').replace(/\s/g, '_') + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('QR téléchargé');
+}
+
+// ─── NAV ──────────────────────────────────────────────────────────
+function backToData() {
+  document.getElementById('section-qr').classList.add('hidden');
+  document.getElementById('section-data').classList.remove('hidden');
+  setStep(2);
+}
+
+function reset() {
+  document.getElementById('section-data').classList.add('hidden');
+  document.getElementById('section-qr').classList.add('hidden');
+  document.getElementById('section-scan').classList.remove('hidden');
+  document.getElementById('manual-input').value = '';
+  document.getElementById('qr-output').innerHTML = '';
+  document.getElementById('badge-class').classList.add('hidden');
+  document.getElementById('modified-count').classList.add('hidden');
+  bcbpData = {}; rawString = ''; modifiedFields = new Set();
+  setStep(1);
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('step' + i);
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  }
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────
+function julianToDate(julian) {
+  if (!julian || julian.trim() === '' || julian === '000') return '—';
+  const day = parseInt(julian, 10);
+  if (isNaN(day) || day < 1 || day > 366) return julian;
+  const year = new Date().getFullYear();
+  const date = new Date(year, 0, day);
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function classLabel(code) {
+  const map = {
+    'F':'F — Première','A':'A — Première',
+    'J':'J — Affaires','C':'C — Affaires','D':'D — Affaires',
+    'I':'I — Affaires','Z':'Z — Affaires',
+    'W':'W — Premium Éco','P':'P — Premium Éco','S':'S — Premium Éco',
+    'Y':'Y — Économique','B':'B — Économique','M':'M — Économique',
+    'K':'K — Économique','Q':'Q — Économique','V':'V — Économique',
+    'H':'H — Économique','L':'L — Économique','G':'G — Économique',
+    'N':'N — Économique','T':'T — Économique','X':'X — Économique',
+    'U':'U — Navette','E':'E — Navette'
+  };
+  const c = (code || '').trim();
+  return map[c] || (c ? c + ' — Inconnu' : '—');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.add('hidden'), 2800);
+}
+
+// ─── TAB SWITCH ───────────────────────────────────────────────────
+function switchTab(tab) {
+  const isGen = tab === 'gen';
+  document.getElementById('tab-reader').classList.toggle('active', !isGen);
+  document.getElementById('tab-gen').classList.toggle('active', isGen);
+
+  // Cacher toutes les sections lecteur
+  ['section-scan','section-data','section-qr'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
+  document.getElementById('section-gen').classList.toggle('hidden', !isGen);
+
+  if (!isGen) {
+    // Retour lecteur : remettre sur scan
+    document.getElementById('section-scan').classList.remove('hidden');
+    setStep(1);
+  }
+}
+
+// ─── GÉNÉRATEUR BCBP ──────────────────────────────────────────────
+function pad(str, len, char = ' ') {
+  return (str + char.repeat(len)).substring(0, len);
+}
+
+function dateToJulian(dateStr) {
+  if (!dateStr) return '000';
+  const d = new Date(dateStr);
+  const start = new Date(d.getFullYear(), 0, 0);
+  const diff = d - start;
+  const oneDay = 1000 * 60 * 60 * 24;
+  const day = Math.floor(diff / oneDay);
+  return String(day).padStart(3, '0');
+}
+
+function buildBCBP() {
+  const lastName  = (document.getElementById('gen-lastname').value || 'UNKNOWN').toUpperCase();
+  const firstName = (document.getElementById('gen-firstname').value || '').toUpperCase();
+  const origin    = pad((document.getElementById('gen-origin').value || '   ').toUpperCase(), 3);
+  const dest      = pad((document.getElementById('gen-dest').value || '   ').toUpperCase(), 3);
+  const carrier   = pad((document.getElementById('gen-carrier').value || '  ').toUpperCase(), 3);
+  const flight    = pad((document.getElementById('gen-flight').value || '    ').toUpperCase(), 5);
+  const dateVal   = document.getElementById('gen-date').value;
+  const julian    = dateToJulian(dateVal);
+  const cabinCls  = document.getElementById('gen-class').value || 'Y';
+  const seat      = pad((document.getElementById('gen-seat').value || '   ').toUpperCase(), 4);
+  const seq       = String(parseInt(document.getElementById('gen-seq').value) || 1).padStart(4, '0') + ' ';
+  const pnr       = pad((document.getElementById('gen-pnr').value || '      ').toUpperCase(), 7);
+  const gate      = pad((document.getElementById('gen-gate').value || '   ').toUpperCase(), 3);
+
+  // Nom passager : format NOM/PRENOM sur 20 chars
+  const nameField = pad(lastName + (firstName ? '/' + firstName : ''), 20);
+
+  // Champs conditionnels (taille 0F = 15 en hex → pnr 7 + gate 3 + padding 5)
+  const condData  = pnr + gate + '     ';         // 15 chars
+  const condSize  = condData.length.toString(16).toUpperCase().padStart(2, '0');
+
+  // Construction chaîne BCBP format M (mandatory)
+  // M[legs][name20][E][orig3][dest3][carrier3][flight5][julian3][class1][seat4][seq5][status1][condSize2][cond]
+  const bcbp =
+    'M' +          // format code
+    '1' +          // 1 leg
+    nameField +    // 20 chars
+    'E' +          // e-ticket
+    origin +       // 3
+    dest +         // 3
+    carrier +      // 3
+    flight +       // 5
+    julian +       // 3
+    cabinCls +     // 1
+    seat +         // 4
+    seq +          // 5
+    '0' +          // passenger status
+    condSize +     // 2 hex
+    condData;      // conditionnel
+
+  return bcbp;
+}
+
+function buildPreview() {
+  // Aperçu supprimé — fonction conservée pour les oninput des champs
+}
+
+function generateFromForm() {
+  const lastName = document.getElementById('gen-lastname').value.trim();
+  const origin   = document.getElementById('gen-origin').value.trim();
+  const dest     = document.getElementById('gen-dest').value.trim();
+
+  if (!lastName) { showToast('Nom de famille requis'); return; }
+  if (origin.length !== 3) { showToast('Code aéroport départ : 3 lettres'); return; }
+  if (dest.length !== 3)   { showToast('Code aéroport arrivée : 3 lettres'); return; }
+
+  const bcbp = buildBCBP();
+
+  const container = document.getElementById('gen-qr-output');
+  container.innerHTML = '';
+
+  new QRCode(container, {
+    text: bcbp,
+    width: 220,
+    height: 220,
+    colorDark: '#000000',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  document.getElementById('gen-qr-section').classList.remove('hidden');
+  document.getElementById('btn-dl-gen').style.display = 'flex';
+  showToast('✓ QR Code généré');
+}
+
+function downloadGenQR() {
+  const canvas = document.querySelector('#gen-qr-output canvas');
+  if (!canvas) { showToast('Générer le QR d\'abord'); return; }
+  const origin = document.getElementById('gen-origin').value || 'XXX';
+  const dest   = document.getElementById('gen-dest').value || 'YYY';
+  const link   = document.createElement('a');
+  link.download = 'BCBP_' + origin + '_' + dest + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('QR téléchargé');
+}
+</script>
+</body>
+</html>
