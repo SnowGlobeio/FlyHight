@@ -486,8 +486,12 @@
       <!-- Bannière sécurité -->
       <div id="security-banner" class="security-banner hidden" style="margin-top:1rem"></div>
         <div class="bp-field">
-          <label>Date (jour julien)</label>
+          <label>Date de vol</label>
           <div class="val" id="disp-date">—</div>
+        </div>
+        <div class="bp-field">
+          <label>Date d'émission</label>
+          <div class="val" id="disp-issue-date">—</div>
         </div>
         <div class="bp-field">
           <label>Siège <span id="seat-edit-hint" style="opacity:0.5">✎</span></label>
@@ -862,62 +866,128 @@ function parseBCBP(str) {
     // ── Champ 13 : Passenger status (1 char, pos 50) ──
     const paxStatus = s[50] || ' ';
 
-    // ── Champ 14 : Field size (2 chars, pos 51-52) ──
-    // Taille des champs conditionnels qui suivent
-    const condSize = parseInt(s.substring(51, 53), 16) || 0;
+    // ── Champ 14 : Field size variable (2 chars hex, pos 51-52) ──
+    // Taille totale du champ variable (blocs unique + répété)
+    const varFieldSize = parseInt(s.substring(51, 53), 16) || 0;
 
-    // Champs conditionnels (pos 53+)
+    // ── Parsing des blocs conditionnels ──
+    // La chaîne après pos 53 contient :
+    //   [>][version 1c][fieldSizeUnique 2c hex][...bloc unique...][...bloc répété...]
+    // Bloc unique (items 7, 15-32) :
+    //   pos 0-6  : PNR opérateur (7)
+    //   pos 7    : début version '>' (1) → marqueur
+    //   ...suite après le marqueur...
+    // En réalité la structure exacte selon spec v7 :
+    //   pos 53   : '>' Begin of Version Number (item 8)
+    //   pos 54   : Version Number (item 9, 1 char)
+    //   pos 55-56: Field Size Unique (item 10, 2 hex)
+    //   pos 57+  : champs conditionnels uniques (items 15-32, taille = item 10)
+    //   puis     : bloc répété par leg (item 17 + champs 142-254)
+
     let pnr = '—';
     let ticketNum = '—';
+    let issueDate = '—';
     let hasSecurityKey = false;
     let securityType = '';
-    let fastTrack = ' '; // item 254 : 'Y', 'N' ou ' '
+    let fastTrack = ' ';
 
-    if (condSize > 0 && s.length > 53) {
-      const cond = s.substring(53, 53 + condSize);
-      // PNR Airline : 7 chars (item 7)
-      pnr = cond.substring(0, 7).trim() || '—';
-      // Numéro billet (13 chars, item 142, pos 13)
-      if (cond.length >= 26) ticketNum = cond.substring(13, 26).trim() || '—';
+    let pos = 53; // début du champ variable
+
+    // PNR opérateur : 7 chars AVANT le marqueur '>'
+    if (s.length > pos) {
+      pnr = s.substring(pos, pos + 7).trim() || '—';
+      pos += 7;
     }
 
-    // ── Bloc conditionnel répété (item 17) ──
-    // Situé après le bloc unique. On cherche le marqueur de version '>'
-    // Structure après pos 53+condSize :
-    // [>][version 1c][fieldSize 2c hex][...champs répétés...]
-    // Champs répétés (item 142 à 254) :
-    //   item 142 : airline individual use (variable)
-    //   item 18  : selectee indicator     (1)
-    //   item 19  : marketing carrier      (3)
-    //   item 20  : frequent flyer airline (3)
-    //   item 236 : ID/AD indicator        (1)
-    //   item 89  : free baggage allowance (3)
-    //   item 254 : fast track             (1)  ← pos 12 dans le bloc répété
-    const repeatedStart = 53 + condSize;
-    if (s.length > repeatedStart && s[repeatedStart] === '>') {
-      // version 1 char, fieldSize 2 chars hex
-      const repFieldSize = parseInt(s.substring(repeatedStart + 2, repeatedStart + 4), 16) || 0;
-      if (repFieldSize > 0 && s.length >= repeatedStart + 4 + repFieldSize) {
-        const rep = s.substring(repeatedStart + 4, repeatedStart + 4 + repFieldSize);
-        // item 254 est à la position 12 dans le bloc répété (après les 12 chars des items 142→89)
-        // item 142 (airline individual use) = variable, mais souvent absent ou 0 char ici
-        // pos 0  : selectee indicator (1) item 18
-        // pos 1  : marketing carrier  (3) item 19
-        // pos 4  : frequent flyer airline (3) item 20
-        // pos 7  : ID/AD indicator    (1) item 236
-        // pos 8  : free baggage       (3) item 89
-        // pos 11 : fast track         (1) item 254
-        if (rep.length >= 12) {
-          fastTrack = rep[11] || ' ';
+    // Marqueur '>' (item 8 - Begin of Version Number)
+    if (s[pos] === '>') {
+      pos += 1; // skip '>'
+
+      // Version number (item 9, 1 char)
+      const version = s[pos] || '0';
+      pos += 1;
+
+      // Field size unique (item 10, 2 hex chars)
+      const uniqueSize = parseInt(s.substring(pos, pos + 2), 16) || 0;
+      pos += 2;
+
+      // Bloc unique (items 15-32)
+      const uniqueBlock = s.substring(pos, pos + uniqueSize);
+      pos += uniqueSize;
+
+      // Parsing bloc unique :
+      // item 15 : passenger description (1)
+      // item 16 : document type         (1)
+      // item 17 : field size repeated   (2 hex)
+      // item 18 : selectee indicator    (1)
+      // item 19 : marketing carrier     (3)
+      // item 20 : frequent flyer airline(3)
+      // item 21 : airline issuer        (3)
+      // item 22 : date of issue         (4)
+      // item 23 : baggage tag           (13)
+      let uPos = 0;
+      if (uniqueBlock.length > 0) {
+        const passengerDesc = uniqueBlock[uPos] || ' '; uPos += 1;
+        const docType       = uniqueBlock[uPos] || ' '; uPos += 1;
+
+        // Field size repeated (item 17, 2 hex)
+        const repSize = parseInt(uniqueBlock.substring(uPos, uPos + 2), 16) || 0;
+        uPos += 2;
+
+        if (uniqueBlock.length >= uPos + repSize) {
+          const repBlock = uniqueBlock.substring(uPos, uPos + repSize);
+          uPos += repSize;
+
+          // Parsing bloc répété (items 142→254) :
+          // item 142 : airline individual use (variable — souvent 0)
+          // item 18  : selectee indicator     (1)  pos 0
+          // item 19  : marketing carrier      (3)  pos 1
+          // item 20  : frequent flyer airline (3)  pos 4
+          // item 236 : ID/AD indicator        (1)  pos 7
+          // item 89  : free baggage allowance (3)  pos 8
+          // item 254 : fast track             (1)  pos 11
+          if (repBlock.length >= 12) {
+            fastTrack = repBlock[11] || ' ';
+          }
+        }
+
+        // item 21 : airline issuer (3)
+        if (uniqueBlock.length >= uPos + 3) {
+          uPos += 3; // skip airline issuer
+        }
+
+        // item 22 : date of issue (4) — format : dernier chiffre année + 3 chiffres jour
+        if (uniqueBlock.length >= uPos + 4) {
+          const rawIssue = uniqueBlock.substring(uPos, uPos + 4);
+          uPos += 4;
+          const issueYear = '201' + rawIssue[0]; // approximation
+          const issueJulian = parseInt(rawIssue.substring(1), 10);
+          if (!isNaN(issueJulian)) {
+            const d = new Date(parseInt(issueYear), 0, issueJulian);
+            issueDate = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+          }
+        }
+
+        // item 23 : baggage tag (13)
+        if (uniqueBlock.length >= uPos + 13) {
+          ticketNum = uniqueBlock.substring(uPos, uPos + 13).trim() || '—';
+          uPos += 13;
         }
       }
+
+    } else {
+      // Pas de marqueur '>' — format minimal sans bloc version
+      // Le conditionnel commence directement
+      const condBlock = s.substring(pos, pos + varFieldSize - 7);
+      if (condBlock.length >= 13) ticketNum = condBlock.substring(6, 19).trim() || '—';
     }
 
-    // ── Détection clé de sécurité IATA BCBP ──
-    const securityMarkerIdx = s.indexOf('^');
-    if (securityMarkerIdx !== -1 && securityMarkerIdx > 50) {
+    // ── Détection clé de sécurité ──
+    // Marqueur '^' en fin de chaîne
+    const secIdx = s.indexOf('^');
+    if (secIdx !== -1 && secIdx > 50) {
       hasSecurityKey = true;
-      securityType = s[securityMarkerIdx + 1] || '?';
+      securityType = s[secIdx + 1] || '?';
     }
 
     bcbpData = {
@@ -932,6 +1002,7 @@ function parseBCBP(str) {
       paxStatus,
       pnr,
       ticketNum,
+      issueDate,
       fastTrack,
       hasSecurityKey,
       securityType,
@@ -957,6 +1028,7 @@ function displayData() {
   document.getElementById('disp-to').textContent = d.dest || '—';
   document.getElementById('disp-flight').textContent = d.flight || '—';
   document.getElementById('disp-date').textContent = julianToDate(d.julianDay);
+  document.getElementById('disp-issue-date').textContent = d.issueDate || '—';
   document.getElementById('disp-seat').textContent = d.seat || '—';
   document.getElementById('disp-class').textContent = classLabel(d.cabinClass);
   document.getElementById('disp-seq').textContent = d.seq ? parseInt(d.seq, 10) : '—';
