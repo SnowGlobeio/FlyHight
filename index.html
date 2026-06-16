@@ -74,6 +74,74 @@
     text-transform: uppercase;
   }
 
+  /* ── NAV TABS ── */
+  .nav-tabs {
+    margin-left: auto;
+    display: flex; gap: 0;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .nav-tab {
+    padding: 0.45rem 0.85rem;
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer; border: none; background: var(--surface);
+    color: var(--text-muted); transition: all 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .nav-tab:last-child { border-right: none; }
+  .nav-tab.active { background: var(--accent-dim); color: var(--accent); }
+  .nav-tab:hover:not(.active) { color: var(--text); }
+
+  /* ── GÉNÉRATEUR ── */
+  .gen-form { display: flex; flex-direction: column; gap: 1rem; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .form-row.full { grid-template-columns: 1fr; }
+  .form-row.trio { grid-template-columns: 1fr 1fr 1fr; }
+
+  .form-field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .form-field label {
+    font-family: var(--mono); font-size: 0.6rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .form-field input, .form-field select {
+    width: 100%; padding: 0.65rem 0.75rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: var(--mono); font-size: 0.82rem;
+    outline: none; transition: border-color 0.15s;
+  }
+  .form-field input:focus, .form-field select:focus { border-color: var(--accent); }
+  .form-field input::placeholder { color: var(--text-dim); }
+  .form-field select option { background: var(--card); }
+  .form-field input.upper { text-transform: uppercase; }
+
+  .form-divider {
+    border: none; border-top: 1px solid var(--border);
+    margin: 0.25rem 0;
+  }
+
+  .gen-preview {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.85rem 1rem;
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--text-muted); word-break: break-all;
+    line-height: 1.7; min-height: 48px;
+  }
+  .gen-preview .label { color: var(--text-dim); font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 0.3rem; }
+
+  .gen-qr-out {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem; text-align: center;
+  }
+  .gen-qr-out h3 {
+    font-family: var(--mono); font-size: 0.7rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 1rem;
+  }
+  #gen-qr-output { display: inline-block; padding: 1rem; background: #fff; border-radius: 12px; margin-bottom: 1rem; }
+
   main { max-width: 520px; margin: 0 auto; padding: 1.5rem 1rem; }
 
   /* ── STEPS ── */
@@ -344,6 +412,10 @@
     <h1>BCBP READER <span>/ EDITOR</span></h1>
     <span>IATA Resolution 792 · v7</span>
   </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="tab-reader" onclick="switchTab('reader')">LIRE</button>
+    <button class="nav-tab" id="tab-gen" onclick="switchTab('gen')">CRÉER</button>
+  </div>
 </header>
 
 <main>
@@ -473,6 +545,7 @@
       <button class="btn btn-secondary" onclick="reset()">↩ Nouveau scan</button>
       <button class="btn btn-primary" id="btn-generate-qr" onclick="generateQR()">⬇ Générer QR</button>
     </div>
+
   </div>
 
   <!-- ── SECTION QR ── -->
@@ -489,6 +562,112 @@
       <button class="btn btn-primary" onclick="downloadQR()">💾 Télécharger</button>
     </div>
   </div>
+  <!-- ── SECTION GÉNÉRATEUR ── -->
+  <div id="section-gen" class="hidden">
+
+    <p class="section-label">Nouveau billet</p>
+
+    <div class="gen-form">
+
+      <!-- Passager -->
+      <div class="form-row">
+        <div class="form-field">
+          <label>Nom de famille</label>
+          <input type="text" id="gen-lastname" class="upper" placeholder="DOE" maxlength="18" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Prénom</label>
+          <input type="text" id="gen-firstname" class="upper" placeholder="JOHN" maxlength="10" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- Aéroports + vol -->
+      <div class="form-row trio">
+        <div class="form-field">
+          <label>Départ</label>
+          <input type="text" id="gen-origin" class="upper" placeholder="CDG" maxlength="3" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Arrivée</label>
+          <input type="text" id="gen-dest" class="upper" placeholder="LFO" maxlength="3" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Compagnie</label>
+          <input type="text" id="gen-carrier" class="upper" placeholder="AF" maxlength="3" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>N° vol</label>
+          <input type="text" id="gen-flight" class="upper" placeholder="0123" maxlength="5" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Date de vol</label>
+          <input type="date" id="gen-date" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- Classe, siège, porte -->
+      <div class="form-row trio">
+        <div class="form-field">
+          <label>Classe</label>
+          <select id="gen-class" onchange="buildPreview()">
+            <option value="F">F — Première</option>
+            <option value="J">J — Affaires</option>
+            <option value="C">C — Affaires</option>
+            <option value="W">W — Premium Éco</option>
+            <option value="Y" selected>Y — Économique</option>
+            <option value="B">B — Économique</option>
+            <option value="M">M — Économique</option>
+            <option value="K">K — Économique</option>
+            <option value="Q">Q — Économique</option>
+            <option value="V">V — Économique</option>
+            <option value="H">H — Économique</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Siège</label>
+          <input type="text" id="gen-seat" class="upper" placeholder="12A" maxlength="4" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>Porte</label>
+          <input type="text" id="gen-gate" class="upper" placeholder="B22" maxlength="4" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- PNR -->
+      <div class="form-row">
+        <div class="form-field">
+          <label>PNR / Réf. réservation</label>
+          <input type="text" id="gen-pnr" class="upper" placeholder="ABCDEF" maxlength="7" oninput="buildPreview()"/>
+        </div>
+        <div class="form-field">
+          <label>N° séquence</label>
+          <input type="number" id="gen-seq" placeholder="1" min="1" max="9999" value="1" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <!-- QR généré -->
+      <div class="gen-qr-out hidden" id="gen-qr-section">
+        <h3>QR Code · BCBP</h3>
+        <div id="gen-qr-output"></div>
+      </div>
+
+      <div class="scan-actions">
+        <button class="btn btn-primary" onclick="generateFromForm()">⬇ Générer QR</button>
+        <button class="btn btn-secondary" id="btn-dl-gen" onclick="downloadGenQR()" style="display:none">💾 Télécharger</button>
+      </div>
+
+    </div>
+  </div>
+
 </main>
 
 <div class="toast hidden" id="toast"></div>
@@ -942,6 +1121,128 @@ function showToast(msg) {
   t.classList.remove('hidden');
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.add('hidden'), 2800);
+}
+
+// ─── TAB SWITCH ───────────────────────────────────────────────────
+function switchTab(tab) {
+  const isGen = tab === 'gen';
+  document.getElementById('tab-reader').classList.toggle('active', !isGen);
+  document.getElementById('tab-gen').classList.toggle('active', isGen);
+
+  // Cacher toutes les sections lecteur
+  ['section-scan','section-data','section-qr'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
+  document.getElementById('section-gen').classList.toggle('hidden', !isGen);
+
+  if (!isGen) {
+    // Retour lecteur : remettre sur scan
+    document.getElementById('section-scan').classList.remove('hidden');
+    setStep(1);
+  }
+}
+
+// ─── GÉNÉRATEUR BCBP ──────────────────────────────────────────────
+function pad(str, len, char = ' ') {
+  return (str + char.repeat(len)).substring(0, len);
+}
+
+function dateToJulian(dateStr) {
+  if (!dateStr) return '000';
+  const d = new Date(dateStr);
+  const start = new Date(d.getFullYear(), 0, 0);
+  const diff = d - start;
+  const oneDay = 1000 * 60 * 60 * 24;
+  const day = Math.floor(diff / oneDay);
+  return String(day).padStart(3, '0');
+}
+
+function buildBCBP() {
+  const lastName  = (document.getElementById('gen-lastname').value || 'UNKNOWN').toUpperCase();
+  const firstName = (document.getElementById('gen-firstname').value || '').toUpperCase();
+  const origin    = pad((document.getElementById('gen-origin').value || '   ').toUpperCase(), 3);
+  const dest      = pad((document.getElementById('gen-dest').value || '   ').toUpperCase(), 3);
+  const carrier   = pad((document.getElementById('gen-carrier').value || '  ').toUpperCase(), 3);
+  const flight    = pad((document.getElementById('gen-flight').value || '    ').toUpperCase(), 5);
+  const dateVal   = document.getElementById('gen-date').value;
+  const julian    = dateToJulian(dateVal);
+  const cabinCls  = document.getElementById('gen-class').value || 'Y';
+  const seat      = pad((document.getElementById('gen-seat').value || '   ').toUpperCase(), 4);
+  const seq       = String(parseInt(document.getElementById('gen-seq').value) || 1).padStart(4, '0') + ' ';
+  const pnr       = pad((document.getElementById('gen-pnr').value || '      ').toUpperCase(), 7);
+  const gate      = pad((document.getElementById('gen-gate').value || '   ').toUpperCase(), 3);
+
+  // Nom passager : format NOM/PRENOM sur 20 chars
+  const nameField = pad(lastName + (firstName ? '/' + firstName : ''), 20);
+
+  // Champs conditionnels (taille 0F = 15 en hex → pnr 7 + gate 3 + padding 5)
+  const condData  = pnr + gate + '     ';         // 15 chars
+  const condSize  = condData.length.toString(16).toUpperCase().padStart(2, '0');
+
+  // Construction chaîne BCBP format M (mandatory)
+  // M[legs][name20][E][orig3][dest3][carrier3][flight5][julian3][class1][seat4][seq5][status1][condSize2][cond]
+  const bcbp =
+    'M' +          // format code
+    '1' +          // 1 leg
+    nameField +    // 20 chars
+    'E' +          // e-ticket
+    origin +       // 3
+    dest +         // 3
+    carrier +      // 3
+    flight +       // 5
+    julian +       // 3
+    cabinCls +     // 1
+    seat +         // 4
+    seq +          // 5
+    '0' +          // passenger status
+    condSize +     // 2 hex
+    condData;      // conditionnel
+
+  return bcbp;
+}
+
+function buildPreview() {
+  // Aperçu supprimé — fonction conservée pour les oninput des champs
+}
+
+function generateFromForm() {
+  const lastName = document.getElementById('gen-lastname').value.trim();
+  const origin   = document.getElementById('gen-origin').value.trim();
+  const dest     = document.getElementById('gen-dest').value.trim();
+
+  if (!lastName) { showToast('Nom de famille requis'); return; }
+  if (origin.length !== 3) { showToast('Code aéroport départ : 3 lettres'); return; }
+  if (dest.length !== 3)   { showToast('Code aéroport arrivée : 3 lettres'); return; }
+
+  const bcbp = buildBCBP();
+
+  const container = document.getElementById('gen-qr-output');
+  container.innerHTML = '';
+
+  new QRCode(container, {
+    text: bcbp,
+    width: 220,
+    height: 220,
+    colorDark: '#000000',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  document.getElementById('gen-qr-section').classList.remove('hidden');
+  document.getElementById('btn-dl-gen').style.display = 'flex';
+  showToast('✓ QR Code généré');
+}
+
+function downloadGenQR() {
+  const canvas = document.querySelector('#gen-qr-output canvas');
+  if (!canvas) { showToast('Générer le QR d\'abord'); return; }
+  const origin = document.getElementById('gen-origin').value || 'XXX';
+  const dest   = document.getElementById('gen-dest').value || 'YYY';
+  const link   = document.createElement('a');
+  link.download = 'BCBP_' + origin + '_' + dest + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('QR téléchargé');
 }
 </script>
 </body>
