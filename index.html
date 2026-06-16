@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -678,7 +678,6 @@
 // ─── STATE ───────────────────────────────────────────────────────
 let bcbpData = {};
 let rawString = '';
-let html5Qr = null;
 let modifiedFields = new Set();
 
 // ─── DEMO DATA ───────────────────────────────────────────────────
@@ -689,39 +688,56 @@ function loadDemo() {
   showToast('Exemple IATA chargé');
 }
 
-// ─── CAMERA ──────────────────────────────────────────────────────
+// ─── CAMERA (ZXing) ──────────────────────────────────────────────
+let zxingReader = null;
+
 function startCamera() {
-  document.getElementById('scan-zone').style.display = 'block';
   document.getElementById('btn-camera').style.display = 'none';
   document.getElementById('btn-image').style.display = 'none';
   document.getElementById('btn-stop').style.display = 'flex';
+  document.getElementById('scan-zone').style.display = 'block';
 
-  html5Qr = new Html5Qrcode('reader');
-  html5Qr.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 280, height: 120 } },
-    (decoded) => {
+  // Préparer l'élément video
+  let video = document.getElementById('zxing-video');
+  if (!video) {
+    video = document.createElement('video');
+    video.id = 'zxing-video';
+    video.style.cssText = 'width:100%;border-radius:0;display:block;';
+    document.getElementById('reader').innerHTML = '';
+    document.getElementById('reader').appendChild(video);
+  }
+
+  const hints = new Map();
+  const formats = [
+    ZXing.BarcodeFormat.PDF_417,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.AZTEC,
+    ZXing.BarcodeFormat.DATA_MATRIX
+  ];
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+  zxingReader = new ZXing.BrowserMultiFormatReader(hints);
+
+  zxingReader.decodeFromVideoDevice(null, 'zxing-video', (result, err) => {
+    if (result) {
       stopCamera();
-      rawString = decoded;
-      parseBCBP(decoded);
-    },
-    () => {}
-  ).catch(err => {
+      rawString = result.getText();
+      parseBCBP(rawString);
+    }
+    // err = pas encore de résultat, on continue
+  }).catch(err => {
     showToast('Caméra non disponible : ' + err);
     resetCameraUI();
   });
 }
 
 function stopCamera() {
-  if (html5Qr) {
-    html5Qr.stop().catch(() => {}).finally(() => {
-      html5Qr.clear();
-      html5Qr = null;
-      resetCameraUI();
-    });
-  } else {
-    resetCameraUI();
+  if (zxingReader) {
+    zxingReader.reset();
+    zxingReader = null;
   }
+  resetCameraUI();
 }
 
 function resetCameraUI() {
@@ -730,25 +746,35 @@ function resetCameraUI() {
   document.getElementById('btn-stop').style.display = 'none';
 }
 
-// ─── SCAN FROM IMAGE FILE ─────────────────────────────────────────
+// ─── SCAN FROM IMAGE FILE (ZXing) ────────────────────────────────
 function scanFromFile(event) {
   const file = event.target.files[0];
   if (!file) return;
-
-  // Réinitialiser l'input pour permettre de resélectionner le même fichier
   event.target.value = '';
 
   showToast('⏳ Analyse de l\'image…');
 
-  const scanner = new Html5Qrcode('reader');
-  scanner.scanFile(file, true)
-    .then(decoded => {
-      scanner.clear();
-      rawString = decoded;
-      parseBCBP(decoded);
+  const hints = new Map();
+  const formats = [
+    ZXing.BarcodeFormat.PDF_417,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.AZTEC,
+    ZXing.BarcodeFormat.DATA_MATRIX
+  ];
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+  const reader = new ZXing.BrowserMultiFormatReader(hints);
+  const url = URL.createObjectURL(file);
+
+  reader.decodeFromImageUrl(url)
+    .then(result => {
+      URL.revokeObjectURL(url);
+      rawString = result.getText();
+      parseBCBP(rawString);
     })
     .catch(() => {
-      scanner.clear();
+      URL.revokeObjectURL(url);
       showToast('❌ Aucun code-barres détecté dans l\'image');
     });
 }
