@@ -525,6 +525,11 @@
         </div>
 
         <div class="bp-field full">
+          <label>Fast Track <span style="font-size:0.55rem;opacity:0.6">(item 254)</span></label>
+          <div class="val" id="disp-fasttrack">—</div>
+        </div>
+
+        <div class="bp-field full">
           <label>PNR / Référence réservation</label>
           <div class="val" id="disp-pnr">—</div>
         </div>
@@ -653,6 +658,20 @@
         <div class="form-field">
           <label>N° séquence</label>
           <input type="number" id="gen-seq" placeholder="1" min="1" max="9999" value="1" oninput="buildPreview()"/>
+        </div>
+      </div>
+
+      <hr class="form-divider"/>
+
+      <!-- Fast Track -->
+      <div class="form-row full">
+        <div class="form-field">
+          <label>Fast Track <span style="font-size:0.55rem;opacity:0.6">(item 254 IATA)</span></label>
+          <select id="gen-fasttrack" onchange="buildPreview()">
+            <option value=" ">— Non renseigné</option>
+            <option value="Y">Y — Autorisé</option>
+            <option value="N">N — Non autorisé</option>
+          </select>
         </div>
       </div>
 
@@ -852,28 +871,53 @@ function parseBCBP(str) {
     let ticketNum = '—';
     let hasSecurityKey = false;
     let securityType = '';
+    let fastTrack = ' '; // item 254 : 'Y', 'N' ou ' '
 
     if (condSize > 0 && s.length > 53) {
       const cond = s.substring(53, 53 + condSize);
-      // PNR Airline : 7 chars au début des champs conditionnels
+      // PNR Airline : 7 chars (item 7)
       pnr = cond.substring(0, 7).trim() || '—';
-      // Numéro billet (13 chars à partir de pos 13 dans conditionnel)
+      // Numéro billet (13 chars, item 142, pos 13)
       if (cond.length >= 26) ticketNum = cond.substring(13, 26).trim() || '—';
     }
 
+    // ── Bloc conditionnel répété (item 17) ──
+    // Situé après le bloc unique. On cherche le marqueur de version '>'
+    // Structure après pos 53+condSize :
+    // [>][version 1c][fieldSize 2c hex][...champs répétés...]
+    // Champs répétés (item 142 à 254) :
+    //   item 142 : airline individual use (variable)
+    //   item 18  : selectee indicator     (1)
+    //   item 19  : marketing carrier      (3)
+    //   item 20  : frequent flyer airline (3)
+    //   item 236 : ID/AD indicator        (1)
+    //   item 89  : free baggage allowance (3)
+    //   item 254 : fast track             (1)  ← pos 12 dans le bloc répété
+    const repeatedStart = 53 + condSize;
+    if (s.length > repeatedStart && s[repeatedStart] === '>') {
+      // version 1 char, fieldSize 2 chars hex
+      const repFieldSize = parseInt(s.substring(repeatedStart + 2, repeatedStart + 4), 16) || 0;
+      if (repFieldSize > 0 && s.length >= repeatedStart + 4 + repFieldSize) {
+        const rep = s.substring(repeatedStart + 4, repeatedStart + 4 + repFieldSize);
+        // item 254 est à la position 12 dans le bloc répété (après les 12 chars des items 142→89)
+        // item 142 (airline individual use) = variable, mais souvent absent ou 0 char ici
+        // pos 0  : selectee indicator (1) item 18
+        // pos 1  : marketing carrier  (3) item 19
+        // pos 4  : frequent flyer airline (3) item 20
+        // pos 7  : ID/AD indicator    (1) item 236
+        // pos 8  : free baggage       (3) item 89
+        // pos 11 : fast track         (1) item 254
+        if (rep.length >= 12) {
+          fastTrack = rep[11] || ' ';
+        }
+      }
+    }
+
     // ── Détection clé de sécurité IATA BCBP ──
-    // Selon spec v7 : champ sécurité identifié par le marqueur '>' (type indicator)
-    // dans le bloc conditionnel unique (begin of version number field)
-    // Le champ sécurité commence par '>' suivi du type (1 char) et des données signées
-    const securityMarkerIdx = s.indexOf('>');
+    const securityMarkerIdx = s.indexOf('^');
     if (securityMarkerIdx !== -1 && securityMarkerIdx > 50) {
       hasSecurityKey = true;
       securityType = s[securityMarkerIdx + 1] || '?';
-    }
-    // Fallback : certaines implémentations utilisent '^' comme séparateur de sécurité
-    if (!hasSecurityKey && s.indexOf('^') !== -1) {
-      hasSecurityKey = true;
-      securityType = '^';
     }
 
     bcbpData = {
@@ -888,6 +932,7 @@ function parseBCBP(str) {
       paxStatus,
       pnr,
       ticketNum,
+      fastTrack,
       hasSecurityKey,
       securityType,
       raw: s
@@ -918,6 +963,20 @@ function displayData() {
   document.getElementById('disp-pnr').textContent = d.pnr || '—';
   document.getElementById('disp-ticket').textContent = d.ticketNum || '—';
   document.getElementById('raw-display').textContent = d.raw;
+
+  // Fast Track
+  const ft = (d.fastTrack || ' ').trim();
+  const ftEl = document.getElementById('disp-fasttrack');
+  if (ft === 'Y') {
+    ftEl.textContent = '✓ Autorisé';
+    ftEl.style.color = 'var(--green)';
+  } else if (ft === 'N') {
+    ftEl.textContent = '✗ Non autorisé';
+    ftEl.style.color = 'var(--red)';
+  } else {
+    ftEl.textContent = '— Non renseigné';
+    ftEl.style.color = 'var(--text-muted)';
+  }
 
   // ── Gestion sécurité ──
   const banner = document.getElementById('security-banner');
@@ -1199,16 +1258,30 @@ function buildBCBP() {
   const seq       = String(parseInt(document.getElementById('gen-seq').value) || 1).padStart(4, '0') + ' ';
   const pnr       = pad((document.getElementById('gen-pnr').value || '      ').toUpperCase(), 7);
   const gate      = pad((document.getElementById('gen-gate').value || '   ').toUpperCase(), 3);
+  const ftVal     = document.getElementById('gen-fasttrack').value || ' ';
 
   // Nom passager : format NOM/PRENOM sur 20 chars
   const nameField = pad(lastName + (firstName ? '/' + firstName : ''), 20);
 
-  // Champs conditionnels (taille 0F = 15 en hex → pnr 7 + gate 3 + padding 5)
-  const condData  = pnr + gate + '     ';         // 15 chars
-  const condSize  = condData.length.toString(16).toUpperCase().padStart(2, '0');
+  // ── Bloc conditionnel unique (items 7, 142...) ──
+  // PNR 7 chars + gate 3 + padding 5 = 15 chars
+  const condData = pnr + gate + '     ';
+  const condSize = condData.length.toString(16).toUpperCase().padStart(2, '0');
 
-  // Construction chaîne BCBP format M (mandatory)
-  // M[legs][name20][E][orig3][dest3][carrier3][flight5][julian3][class1][seat4][seq5][status1][condSize2][cond]
+  // ── Bloc conditionnel répété (items 18→254) ──
+  // Structure : [>][version 1c][fieldSize 2c hex][rep data]
+  // rep data (12 chars) :
+  //   item 18  selectee   (1) = ' '
+  //   item 19  mkt carrier(3) = '   '
+  //   item 20  ff airline (3) = '   '
+  //   item 236 ID/AD      (1) = ' '
+  //   item 89  free bag   (3) = '   '
+  //   item 254 fast track (1) = ftVal
+  const repData   = ' ' + '   ' + '   ' + ' ' + '   ' + ftVal; // 12 chars
+  const repSize   = repData.length.toString(16).toUpperCase().padStart(2, '0');
+  const repBlock  = ftVal.trim() ? ('>' + '6' + repSize + repData) : '';
+
+  // Construction chaîne BCBP format M
   const bcbp =
     'M' +          // format code
     '1' +          // 1 leg
@@ -1224,7 +1297,8 @@ function buildBCBP() {
     seq +          // 5
     '0' +          // passenger status
     condSize +     // 2 hex
-    condData;      // conditionnel
+    condData +     // conditionnel unique
+    repBlock;      // conditionnel répété (Fast Track)
 
   return bcbp;
 }
