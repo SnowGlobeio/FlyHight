@@ -446,10 +446,9 @@
 
     <div class="manual-block">
       <p class="section-label">Ou coller la chaîne BCBP manuellement</p>
-      <textarea id="manual-input" placeholder="M1DOE/JOHN            EABCDEF CDGLFOPK 0123 182Y00A 0046 147"></textarea>
+      <textarea id="manual-input" placeholder="M1DOE/JOHN            EABCDEF CDGLFOPK 0123 182Y00A 0046 147" oninput="document.getElementById('btn-analyser').disabled = !this.value.trim()"></textarea>
       <div class="scan-actions" style="margin-top:0.5rem">
-        <button class="btn btn-secondary" onclick="parseManual()">→ Analyser</button>
-        <button class="btn btn-secondary" onclick="loadDemo()">🔧 Exemple IATA</button>
+        <button class="btn btn-secondary" id="btn-analyser" onclick="parseManual()" disabled>→ Analyser</button>
       </div>
     </div>
   </div>
@@ -546,7 +545,7 @@
 
     <div class="scan-actions" style="margin-top:1.25rem">
       <button class="btn btn-secondary" onclick="reset()">↩ Nouveau scan</button>
-      <button class="btn btn-primary" id="btn-generate-qr" onclick="generateQR()">⬇ Générer QR</button>
+      <button class="btn btn-primary" id="btn-generate-qr" onclick="generateQR()" disabled>⬇ Générer QR</button>
     </div>
 
   </div>
