@@ -364,8 +364,10 @@
 
     <div class="scan-actions">
       <button class="btn btn-primary" id="btn-camera" onclick="startCamera()">📷 Caméra</button>
+      <button class="btn btn-secondary" id="btn-image" onclick="document.getElementById('file-input').click()">🖼 Image</button>
       <button class="btn btn-secondary" id="btn-stop" onclick="stopCamera()" style="display:none">⏹ Stopper</button>
     </div>
+    <input type="file" id="file-input" accept="image/*" style="display:none" onchange="scanFromFile(event)"/>
 
     <div class="manual-block">
       <p class="section-label">Ou coller la chaîne BCBP manuellement</p>
@@ -510,6 +512,7 @@ function loadDemo() {
 function startCamera() {
   document.getElementById('scan-zone').style.display = 'block';
   document.getElementById('btn-camera').style.display = 'none';
+  document.getElementById('btn-image').style.display = 'none';
   document.getElementById('btn-stop').style.display = 'flex';
 
   html5Qr = new Html5Qrcode('reader');
@@ -542,7 +545,31 @@ function stopCamera() {
 
 function resetCameraUI() {
   document.getElementById('btn-camera').style.display = 'flex';
+  document.getElementById('btn-image').style.display = 'flex';
   document.getElementById('btn-stop').style.display = 'none';
+}
+
+// ─── SCAN FROM IMAGE FILE ─────────────────────────────────────────
+function scanFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Réinitialiser l'input pour permettre de resélectionner le même fichier
+  event.target.value = '';
+
+  showToast('⏳ Analyse de l\'image…');
+
+  const scanner = new Html5Qrcode('reader');
+  scanner.scanFile(file, true)
+    .then(decoded => {
+      scanner.clear();
+      rawString = decoded;
+      parseBCBP(decoded);
+    })
+    .catch(() => {
+      scanner.clear();
+      showToast('❌ Aucun code-barres détecté dans l\'image');
+    });
 }
 
 // ─── MANUAL PARSE ────────────────────────────────────────────────
